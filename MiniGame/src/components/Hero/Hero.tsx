@@ -1,7 +1,10 @@
-import { Container, Sprite } from "@pixi/react"
+import { Container, Sprite, useTick } from "@pixi/react"
 import { Texture } from "pixi.js"
-import { useEffect, useRef } from "react"
-import { DEFAULT_POS_X, DEFAULT_POS_Y } from "../../constants/game-world"
+import { useCallback, useEffect, useRef } from "react"
+import { DEFAULT_POS_X, DEFAULT_POS_Y, MOVE_SPEED } from "../../constants/game-world"
+import { useHeroControls } from "./useHeroControls"
+import { Direction, IPosition } from "../../types/common"
+import { calculateNewTarget, checkCanMove, handleMovement } from "../../helpers/common"
 
 interface IHeroProps {
     texture: Texture
@@ -10,10 +13,47 @@ interface IHeroProps {
 
 export const Hero = ({texture, onMove}: IHeroProps) => {
     const position = useRef({x: DEFAULT_POS_X, y: DEFAULT_POS_Y})
+    const targetPosition = useRef<IPosition | null>(null)
+    const currentDirection = useRef<Direction | null>(null)
+    const {getControlsDirection} = useHeroControls()
+
+    const direction = getControlsDirection()
+    
 
     useEffect(()=> {
         onMove(position.current.x, position.current.y)
     },[onMove])
+
+    const setNextTarget = useCallback((direction: Direction) =>{
+      if (targetPosition.current) return 
+      const { x, y} = position.current
+      currentDirection.current = direction
+      const newTarget = calculateNewTarget(x, y, direction)
+
+       if (checkCanMove(newTarget)) {
+        targetPosition.current = newTarget
+
+       }
+
+      
+    },[])
+
+    useTick((delta)=> {
+      if(direction) {
+         setNextTarget(direction)
+      }
+
+      //handle movement
+      if(targetPosition.current) {
+        const { completed, position: newPosition} = handleMovement(position.current, targetPosition.current, MOVE_SPEED, delta)
+        
+        position.current = newPosition
+
+        if(completed) {
+            targetPosition.current = null
+        }
+    }
+    })
     return (
         <Container>
             <Sprite
